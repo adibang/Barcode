@@ -1,39 +1,140 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Kalkulator Barcode — USB & BLE Print</title>
-  <script src="https://unpkg.com/tailwindcss@3.3.3/dist/tailwind.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-  <style>
-    @keyframes press {
-      0% { transform: scale(1); }
-      50% { transform: scale(0.96); }
-      100% { transform: scale(1); }
-    }
-    .press { animation: press 0.12s ease; }
-    .display { font-family: 'Courier New', monospace; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kalkulator Barcode</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #f5f6fa;
+    padding: 20px;
+    text-align: center;
+  }
+  h1 {
+    font-size: 1.8em;
+    margin-bottom: 20px;
+  }
+  #display {
+    font-size: 1.6em;
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px 20px;
+    display: inline-block;
+    min-width: 200px;
+    margin-bottom: 10px;
+    border: 2px solid #ddd;
+  }
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 15px 0;
+  }
+  button {
+    font-size: 1.2em;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: #1976d2;
+    color: white;
+    transition: 0.1s;
+  }
+  button:active {
+    background: #0d47a1;
+    transform: scale(0.96);
+  }
+  #barcode {
+    background: white;
+    display: inline-block;
+    padding: 10px;
+    border-radius: 10px;
+    margin-top: 15px;
+  }
+  #status {
+    font-size: 0.9em;
+    color: #555;
+    margin-top: 10px;
+  }
+  .action-btns button {
+    font-size: 1em;
+    padding: 8px 14px;
+    margin: 5px;
+    border-radius: 6px;
+  }
+  .reset { background: #d32f2f; }
+  .connect { background: #ffa000; }
+  .print { background: #388e3c; }
+</style>
 </head>
-<body class="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-    <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Kalkulator Barcode</h1>
+<body>
+  <h1>Kalkulator Barcode + Printer</h1>
+  <div id="display">0</div>
+  <div id="status">Printer: belum terhubung</div>
 
-    <!-- Display -->
-    <div class="bg-gray-900 text-white rounded-lg p-4 mb-4 text-right display text-2xl font-semibold h-16 overflow-x-auto overflow-y-hidden flex items-center justify-end">
-      <span id="display">0</span>
-    </div>
+  <div class="buttons">
+    <button>1</button><button>2</button><button>3</button>
+    <button>4</button><button>5</button><button>6</button>
+    <button>7</button><button>8</button><button>9</button>
+    <button>0</button><button>00</button><button>←</button>
+  </div>
 
-    <!-- Barcode Preview -->
-    <div class="mb-4 bg-white p-4 rounded-lg border border-gray-300 flex justify-center">
-      <svg id="barcode"></svg>
-    </div>
+  <div class="action-btns">
+    <button class="reset">Reset</button>
+    <button class="connect">Connect</button>
+    <button class="print">Print</button>
+  </div>
 
-    <!-- Status -->
-    <div class="flex gap-2 mb-4">
-      <button id="connect-serial" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 rounded-lg">Connect (USB)</button>
-      <button id="connect-ble" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg">Connect (BLE)</button>
+  <canvas id="barcode"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script>
+    let current = '';
+    const display = document.getElementById('display');
+    const barcodeCanvas = document.getElementById('barcode');
+    const status = document.getElementById('status');
+
+    document.querySelectorAll('.buttons button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.textContent;
+        if (val === '←') current = current.slice(0, -1);
+        else current += val;
+        display.textContent = current || '0';
+        if (current) JsBarcode(barcodeCanvas, current, { format: "CODE128", width: 2, height: 70 });
+      });
+    });
+
+    document.querySelector('.reset').addEventListener('click', () => {
+      current = '';
+      display.textContent = '0';
+      barcodeCanvas.getContext('2d').clearRect(0, 0, barcodeCanvas.width, barcodeCanvas.height);
+    });
+
+    // koneksi printer
+    let port, writer;
+
+    document.querySelector('.connect').addEventListener('click', async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        writer = port.writable.getWriter();
+        status.textContent = 'Printer terhubung ✅';
+      } catch (e) {
+        status.textContent = 'Gagal terhubung ke printer ❌';
+      }
+    });
+
+    document.querySelector('.print').addEventListener('click', async () => {
+      if (!writer) return alert('Hubungkan printer dulu!');
+      const data = current ? current : '0';
+      const encoder = new TextEncoder();
+      await writer.write(encoder.encode(`\x1b@${data}\n\n`));
+      status.textContent = `Mencetak barcode: ${data}`;
+    });
+  </script>
+</body>
+</html>
     </div>
 
     <p id="status" class="text-center text-sm text-gray-600 mb-3">Printer: belum terhubung</p>
