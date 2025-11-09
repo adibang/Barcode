@@ -1,422 +1,189 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator Barcode</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @keyframes buttonPress {
-            0% { transform: scale(1); }
-            50% { transform: scale(0.95); }
-            100% { transform: scale(1); }
-        }
-        .button-press {
-            animation: buttonPress 0.1s ease-in-out;
-        }
-        .display {
-            font-family: 'Courier New', monospace;
-        }
-        #barcode {
-            max-width: 100%;
-            height: auto;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kalkulator Barcode + Web Serial</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    h2 {
+      margin: 20px 0 10px;
+      color: #222;
+    }
+    #display {
+      width: 240px;
+      height: 50px;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+      text-align: right;
+      padding: 5px 10px;
+      border-radius: 10px;
+      border: 2px solid #ccc;
+      background: white;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      gap: 10px;
+    }
+    button {
+      font-size: 1.4em;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      background: #1976d2;
+      color: white;
+      transition: 0.1s;
+    }
+    button:active {
+      background: #0d47a1;
+      transform: scale(0.97);
+    }
+    .bottom-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    #barcode {
+      margin-top: 20px;
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #555;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Kalkulator Barcode</h1>
-        
-        <!-- Display -->
-        <div class="bg-gray-900 text-white rounded-lg p-4 mb-4 text-right display text-2xl font-semibold h-16 overflow-x-auto overflow-y-hidden flex items-center justify-end">
-            <span id="display">0</span>
-        </div>
-        
-        <!-- Barcode Preview -->
-        <div class="mb-6 bg-white p-4 rounded-lg border border-gray-300 flex justify-center">
-            <svg id="barcode"></svg>
-        </div>
-        
-        <!-- Notifications -->
-        <div id="notification" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-            <span id="notification-text"></span>
-        </div>
-        
-        <!-- Bluetooth Connection Status -->
-        <div id="bluetooth-status" class="hidden mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-800 text-sm">
-            <p id="bluetooth-status-text"></p>
-        </div>
-        
-        <!-- Keypad -->
-        <div class="grid grid-cols-4 gap-3">
-            <!-- Row 1 -->
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="1">1</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="2">2</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="3">3</button>
-            <button class="bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-lg transition duration-150" id="backspace">←</button>
-            
-            <!-- Row 2 -->
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="4">4</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="5">5</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="6">6</button>
-            <button class="bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-lg transition duration-150" id="reset">C</button>
-            
-            <!-- Row 3 -->
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="7">7</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="8">8</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="9">9</button>
-            <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-lg transition duration-150" id="print">P</button>
-            
-            <!-- Row 4 -->
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150 col-span-2" data-value="0">0</button>
-            <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="00">00</button>
-        </div>
-        
-        <!-- Bluetooth Printer Selection -->
-        <div id="printer-selection" class="hidden mt-6 p-4 border border-gray-300 rounded-lg">
-            <h3 class="font-bold mb-2">Pilih Printer Bluetooth:</h3>
-            <div id="printer-list" class="mb-3 max-h-40 overflow-y-auto"></div>
-            <button id="refresh-printers" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition duration-150 text-sm">
-                Refresh Printer
-            </button>
-        </div>
-        
-        <div class="mt-6 text-center text-sm text-gray-500">
-            <p>Ketik angka di atas untuk menghasilkan barcode</p>
-            <p class="mt-1">Format: CODE128</p>
-            <p class="mt-2 text-xs">Pastikan Bluetooth diaktifkan dan printer sudah dipasangkan</p>
-        </div>
-    </div>
+<body>
+  <h2>Kalkulator Barcode + Web Serial</h2>
 
-    <script>
-        // Elements
-        const display = document.getElementById('display');
-        const barcodeSvg = document.getElementById('barcode');
-        const notification = document.getElementById('notification');
-        const notificationText = document.getElementById('notification-text');
-        const bluetoothStatus = document.getElementById('bluetooth-status');
-        const bluetoothStatusText = document.getElementById('bluetooth-status-text');
-        const printerSelection = document.getElementById('printer-selection');
-        const printerList = document.getElementById('printer-list');
-        const refreshPrintersBtn = document.getElementById('refresh-printers');
-        
-        // State
-        let currentValue = '0';
-        let bluetoothDevices = [];
-        let selectedPrinter = null;
-        
-        // Check Bluetooth support
-        function checkBluetoothSupport() {
-            if (!navigator.bluetooth) {
-                showBluetoothStatus('Browser tidak mendukung Web Bluetooth API. Gunakan Chrome atau Edge.', 'error');
-                return false;
-            }
-            return true;
+  <input id="display" readonly placeholder="Masukkan angka" />
+
+  <div class="buttons">
+    <button>7</button><button>8</button><button>9</button>
+    <button>4</button><button>5</button><button>6</button>
+    <button>1</button><button>2</button><button>3</button>
+    <button>0</button><button>00</button><button id="back">←</button>
+  </div>
+
+  <div class="bottom-buttons">
+    <button id="reset" style="background:#d32f2f;">Reset</button>
+    <button id="connect" style="background:#ff9800;">Connect</button>
+    <button id="print" style="background:#388e3c;">Print</button>
+  </div>
+
+  <svg id="barcode"></svg>
+  <p id="status">Printer belum terhubung</p>
+
+  <!-- JsBarcode CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+  <script>
+    let currentValue = "";
+    let port = null;
+    let writer = null;
+
+    const display = document.getElementById("display");
+    const buttons = document.querySelectorAll(".buttons button");
+    const barcode = document.getElementById("barcode");
+    const status = document.getElementById("status");
+
+    // Update tampilan barcode
+    function updateBarcode() {
+      if (!currentValue) {
+        barcode.innerHTML = "";
+        return;
+      }
+      JsBarcode(barcode, currentValue, {
+        format: "CODE128",
+        lineColor: "#000",
+        width: 2,
+        height: 70,
+        displayValue: true
+      });
+    }
+
+    // Input angka
+    buttons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (btn.id === "back") {
+          currentValue = currentValue.slice(0, -1);
+        } else {
+          currentValue += btn.textContent;
         }
-        
-        // Initialize barcode with default value
-        JsBarcode(barcodeSvg, currentValue, {
-            format: "CODE128",
-            width: 2,
-            height: 80,
-            displayValue: true,
-            fontSize: 16,
-            margin: 10
-        });
-        
-        // Update display and barcode
-        function updateDisplay() {
-            display.textContent = currentValue;
-            
-            // Update barcode
-            if (currentValue === '0') {
-                barcodeSvg.innerHTML = '';
-            } else {
-                JsBarcode(barcodeSvg, currentValue, {
-                    format: "CODE128",
-                    width: 2,
-                    height: 80,
-                    displayValue: true,
-                    fontSize: 16,
-                    margin: 10
-                });
-            }
-        }
-        
-        // Show notification
-        function showNotification(message, duration = 3000) {
-            notificationText.textContent = message;
-            notification.classList.remove('hidden');
-            
-            setTimeout(() => {
-                notification.classList.add('hidden');
-            }, duration);
-        }
-        
-        // Show Bluetooth status
-        function showBluetoothStatus(message, type = 'info') {
-            bluetoothStatusText.textContent = message;
-            bluetoothStatus.classList.remove('hidden');
-            
-            // Change color based on type
-            if (type === 'error') {
-                bluetoothStatus.className = 'mb-4 p-3 rounded-lg bg-red-100 text-red-800 text-sm';
-            } else if (type === 'success') {
-                bluetoothStatus.className = 'mb-4 p-3 rounded-lg bg-green-100 text-green-800 text-sm';
-            } else {
-                bluetoothStatus.className = 'mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-800 text-sm';
-            }
-        }
-        
-        // Hide Bluetooth status
-        function hideBluetoothStatus() {
-            bluetoothStatus.classList.add('hidden');
-        }
-        
-        // Scan for Bluetooth printers
-        async function scanForPrinters() {
-            if (!checkBluetoothSupport()) return;
-            
-            try {
-                showBluetoothStatus('Mencari printer Bluetooth...');
-                
-                // Request Bluetooth device with more compatible filters
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [
-                        { namePrefix: 'PRT' },
-                        { namePrefix: 'BT' },
-                        { namePrefix: 'Printer' },
-                        { namePrefix: 'POS' },
-                        { services: ['generic_access'] }
-                    ],
-                    optionalServices: [
-                        'generic_access',
-                        'generic_attribute',
-                        'device_information',
-                        'battery_service',
-                        '000018f0-0000-1000-8000-00805f9b34fb' // Common printer service
-                    ]
-                });
-                
-                // If we get here, we found a device
-                bluetoothDevices = [device];
-                showAvailablePrinters();
-                showBluetoothStatus(`Printer ditemukan: ${device.name}`, 'success');
-                
-            } catch (error) {
-                console.error('Bluetooth scan error:', error);
-                if (error.name === 'NotFoundError') {
-                    showBluetoothStatus('Tidak ada printer Bluetooth yang ditemukan. Pastikan printer sudah dalam mode pairing.', 'error');
-                } else if (error.name === 'SecurityError') {
-                    showBluetoothStatus('Izin akses Bluetooth ditolak. Periksa pengaturan browser Anda.', 'error');
-                } else if (error.name === 'NotAllowedError') {
-                    showBluetoothStatus('Akses Bluetooth tidak diizinkan.', 'error');
-                } else {
-                    showBluetoothStatus(`Gagal mencari printer: ${error.message}`, 'error');
-                }
-            }
-        }
-        
-        // Show available printers
-        function showAvailablePrinters() {
-            printerList.innerHTML = '';
-            
-            if (bluetoothDevices.length === 0) {
-                printerList.innerHTML = '<p class="text-sm text-gray-500">Tidak ada printer yang ditemukan</p>';
-                return;
-            }
-            
-            bluetoothDevices.forEach(device => {
-                const printerDiv = document.createElement('div');
-                printerDiv.className = 'flex items-center mb-2 p-2 border border-gray-300 rounded';
-                
-                const radio = document.createElement('input');
-                radio.type = 'radio';
-                radio.name = 'printer';
-                radio.value = device.id;
-                radio.id = device.id;
-                radio.className = 'mr-2';
-                radio.addEventListener('change', () => {
-                    selectedPrinter = device;
-                });
-                
-                const label = document.createElement('label');
-                label.htmlFor = device.id;
-                label.className = 'text-sm';
-                label.textContent = `${device.name || 'Unknown Device'} (${device.id})`;
-                
-                printerDiv.appendChild(radio);
-                printerDiv.appendChild(label);
-                printerList.appendChild(printerDiv);
-            });
-            
-            printerSelection.classList.remove('hidden');
-            
-            // Auto-select the first printer
-            if (bluetoothDevices.length > 0) {
-                const firstRadio = document.querySelector('input[name="printer"]');
-                if (firstRadio) {
-                    firstRadio.checked = true;
-                    selectedPrinter = bluetoothDevices[0];
-                }
-            }
-        }
-        
-        // Print to selected Bluetooth printer
-        async function printToBluetooth() {
-            if (!selectedPrinter) {
-                showNotification('Pilih printer terlebih dahulu');
-                return;
-            }
-            
-            try {
-                showNotification('Menghubungkan ke printer...', 5000);
-                
-                // Connect to the GATT Server
-                const server = await selectedPrinter.gatt.connect();
-                showNotification('Terhubung, mengirim perintah cetak...', 3000);
-                
-                // In a real implementation, you would:
-                // 1. Get the appropriate service
-                // 2. Get the characteristic for printing
-                // 3. Convert the barcode to the appropriate format (ESC/POS, etc.)
-                // 4. Send the print command
-                
-                // For demonstration, we'll simulate the printing process
-                setTimeout(() => {
-                    showNotification('Barcode berhasil dikirim ke printer!', 3000);
-                    
-                    // In a real implementation, you might want to disconnect
-                    // server.disconnect();
-                }, 2000);
-                
-            } catch (error) {
-                console.error('Print error:', error);
-                showNotification(`Gagal mencetak: ${error.message}`);
-            }
-        }
-        
-        // Number button click handler
-        document.querySelectorAll('.number-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                // Add button press animation
-                this.classList.add('button-press');
-                setTimeout(() => {
-                    this.classList.remove('button-press');
-                }, 100);
-                
-                const value = this.getAttribute('data-value');
-                
-                if (currentValue === '0') {
-                    currentValue = value;
-                } else {
-                    currentValue += value;
-                }
-                
-                updateDisplay();
-            });
-        });
-        
-        // Backspace button
-        document.getElementById('backspace').addEventListener('click', function() {
-            // Add button press animation
-            this.classList.add('button-press');
-            setTimeout(() => {
-                this.classList.remove('button-press');
-            }, 100);
-            
-            if (currentValue.length > 1) {
-                currentValue = currentValue.slice(0, -1);
-            } else {
-                currentValue = '0';
-            }
-            
-            updateDisplay();
-        });
-        
-        // Reset button
-        document.getElementById('reset').addEventListener('click', function() {
-            // Add button press animation
-            this.classList.add('button-press');
-            setTimeout(() => {
-                this.classList.remove('button-press');
-            }, 100);
-            
-            currentValue = '0';
-            updateDisplay();
-        });
-        
-        // Print button
-        document.getElementById('print').addEventListener('click', async function() {
-            // Add button press animation
-            this.classList.add('button-press');
-            setTimeout(() => {
-                this.classList.remove('button-press');
-            }, 100);
-            
-            if (currentValue === '0') {
-                showNotification('Tidak ada barcode untuk dicetak');
-                return;
-            }
-            
-            // If we haven't scanned for printers yet, do that first
-            if (bluetoothDevices.length === 0) {
-                await scanForPrinters();
-                return;
-            }
-            
-            // If we have printers but none selected, show the selection
-            if (!selectedPrinter && bluetoothDevices.length > 0) {
-                printerSelection.classList.remove('hidden');
-                showNotification('Pilih printer dari daftar di bawah');
-                return;
-            }
-            
-            // Print to the selected printer
-            await printToBluetooth();
-        });
-        
-        // Refresh printers button
-        refreshPrintersBtn.addEventListener('click', function() {
-            scanForPrinters();
-        });
-        
-        // Keyboard support
-        document.addEventListener('keydown', function(event) {
-            const key = event.key;
-            
-            // Numbers
-            if (key >= '0' && key <= '9') {
-                const button = document.querySelector(`.number-btn[data-value="${key}"]`);
-                if (button) {
-                    button.click();
-                }
-            }
-            
-            // Special keys
-            switch(key) {
-                case 'Backspace':
-                    document.getElementById('backspace').click();
-                    break;
-                case 'Delete':
-                case 'Escape':
-                    document.getElementById('reset').click();
-                    break;
-                case 'Enter':
-                case 'p':
-                case 'P':
-                    document.getElementById('print').click();
-                    break;
-            }
-        });
-        
-        // Initial Bluetooth support check
-        document.addEventListener('DOMContentLoaded', function() {
-            if (checkBluetoothSupport()) {
-                showBluetoothStatus('Bluetooth didukung. Klik tombol "P" untuk mencari printer.');
-            }
-        });
-    </script>
+        display.value = currentValue;
+        updateBarcode();
+      });
+    });
+
+    // Tombol reset
+    document.getElementById("reset").addEventListener("click", () => {
+      currentValue = "";
+      display.value = "";
+      barcode.innerHTML = "";
+    });
+
+    // Tombol Connect printer
+    document.getElementById("connect").addEventListener("click", async () => {
+      if (!("serial" in navigator)) {
+        alert("Browser kamu tidak mendukung Web Serial API.\nCoba gunakan Google Chrome versi terbaru.");
+        return;
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        writer = port.writable.getWriter();
+        status.textContent = "✅ Printer terhubung via USB/Serial";
+        status.style.color = "green";
+      } catch (err) {
+        console.error(err);
+        status.textContent = "❌ Gagal terhubung ke printer";
+        status.style.color = "red";
+      }
+    });
+
+    // Tombol print (kirim langsung ke printer via Serial)
+    document.getElementById("print").addEventListener("click", async () => {
+      if (!currentValue) {
+        alert("Masukkan angka dulu sebelum mencetak.");
+        return;
+      }
+
+      if (!writer) {
+        alert("Printer belum terhubung.\nKlik tombol Connect dulu.");
+        return;
+      }
+
+      // Buat data barcode (hanya teks, printer akan mencetak teksnya)
+      const text = `\x1B\x40\nBARCODE:\n${currentValue}\n\n`;
+      const encoder = new TextEncoder();
+      const data = encoder.encode(text);
+
+      try {
+        await writer.write(data);
+        // Perintah potong kertas (ESC/POS)
+        const cut = new Uint8Array([0x1D, 0x56, 0x42, 0x00]);
+        await writer.write(cut);
+        status.textContent = "✅ Barcode berhasil dikirim ke printer!";
+        status.style.color = "green";
+      } catch (err) {
+        console.error(err);
+        alert("Gagal mengirim data ke printer: " + err.message);
+      }
+    });
+  </script>
 </body>
 </html>
