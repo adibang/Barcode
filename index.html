@@ -1,39 +1,192 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator Barcode</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @keyframes buttonPress {
-            0% { transform: scale(1); }
-            50% { transform: scale(0.95); }
-            100% { transform: scale(1); }
-        }
-        .button-press {
-            animation: buttonPress 0.1s ease-in-out;
-        }
-        .display {
-            font-family: 'Courier New', monospace;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kalkulator Barcode + Web Serial</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    h2 {
+      margin: 20px 0 10px;
+      color: #222;
+    }
+    #display {
+      width: 240px;
+      height: 50px;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+      text-align: right;
+      padding: 5px 10px;
+      border-radius: 10px;
+      border: 2px solid #ccc;
+      background: white;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      gap: 10px;
+    }
+    button {
+      font-size: 1.4em;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      background: #1976d2;
+      color: white;
+      transition: 0.1s;
+    }
+    button:active {
+      background: #0d47a1;
+      transform: scale(0.97);
+    }
+    .bottom-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    #barcode {
+      margin-top: 20px;
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #555;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Kalkulator Barcode</h1>
-        
-        <!-- Display -->
-        <div class="bg-gray-900 text-white rounded-lg p-4 mb-4 text-right display text-2xl font-semibold h-16 overflow-x-auto overflow-y-hidden flex items-center justify-end">
-            <span id="display">0</span>
-        </div>
-        
-        <!-- Barcode Preview -->
-        <div class="mb-6 bg-white p-4 rounded-lg border border-gray-300 flex justify-center">
-            <svg id="barcode"></svg>
-        </div>
-        
+<body>
+  <h2>Kalkulator Barcode + Web Serial</h2>
+
+  <input id="display" readonly placeholder="Masukkan angka" />
+
+  <div class="buttons">
+    <button>7</button><button>8</button><button>9</button>
+    <button>4</button><button>5</button><button>6</button>
+    <button>1</button><button>2</button><button>3</button>
+    <button>0</button><button>00</button><button id="back">←</button>
+  </div>
+
+  <div class="bottom-buttons">
+    <button id="reset" style="background:#d32f2f;">Reset</button>
+    <button id="connect" style="background:#ff9800;">Connect</button>
+    <button id="print" style="background:#388e3c;">Print</button>
+  </div>
+
+  <svg id="barcode"></svg>
+  <p id="status">Printer belum terhubung</p>
+
+  <!-- JsBarcode CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+  <script>
+    let currentValue = "";
+    let port = null;
+    let writer = null;
+
+    const display = document.getElementById("display");
+    const buttons = document.querySelectorAll(".buttons button");
+    const barcode = document.getElementById("barcode");
+    const status = document.getElementById("status");
+
+    // Update tampilan barcode
+    function updateBarcode() {
+      if (!currentValue) {
+        barcode.innerHTML = "";
+        return;
+      }
+      JsBarcode(barcode, currentValue, {
+        format: "CODE128",
+        lineColor: "#000",
+        width: 2,
+        height: 70,
+        displayValue: true
+      });
+    }
+
+    // Input angka
+    buttons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (btn.id === "back") {
+          currentValue = currentValue.slice(0, -1);
+        } else {
+          currentValue += btn.textContent;
+        }
+        display.value = currentValue;
+        updateBarcode();
+      });
+    });
+
+    // Tombol reset
+    document.getElementById("reset").addEventListener("click", () => {
+      currentValue = "";
+      display.value = "";
+      barcode.innerHTML = "";
+    });
+
+    // Tombol Connect printer
+    document.getElementById("connect").addEventListener("click", async () => {
+      if (!("serial" in navigator)) {
+        alert("Browser kamu tidak mendukung Web Serial API.\nCoba gunakan Google Chrome versi terbaru.");
+        return;
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        writer = port.writable.getWriter();
+        status.textContent = "✅ Printer terhubung via USB/Serial";
+        status.style.color = "green";
+      } catch (err) {
+        console.error(err);
+        status.textContent = "❌ Gagal terhubung ke printer";
+        status.style.color = "red";
+      }
+    });
+
+    // Tombol print (kirim langsung ke printer via Serial)
+    document.getElementById("print").addEventListener("click", async () => {
+      if (!currentValue) {
+        alert("Masukkan angka dulu sebelum mencetak.");
+        return;
+      }
+
+      if (!writer) {
+        alert("Printer belum terhubung.\nKlik tombol Connect dulu.");
+        return;
+      }
+
+      // Buat data barcode (hanya teks, printer akan mencetak teksnya)
+      const text = `\x1B\x40\nBARCODE:\n${currentValue}\n\n`;
+      const encoder = new TextEncoder();
+      const data = encoder.encode(text);
+
+      try {
+        await writer.write(data);
+        // Perintah potong kertas (ESC/POS)
+        const cut = new Uint8Array([0x1D, 0x56, 0x42, 0x00]);
+        await writer.write(cut);
+        status.textContent = "✅ Barcode berhasil dikirim ke printer!";
+        status.style.color = "green";
+      } catch (err) {
+        console.error(err);
+        alert("Gagal mengirim data ke printer: " + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
         <!-- Notifications -->
         <div id="notification" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
             <span id="notification-text"></span>
