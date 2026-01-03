@@ -326,10 +326,8 @@
         // Set alignment to center for text
         commands.push(0x1B, 0x61, 0x01); // ESC a 1 (center)
         
-        // **MODIFIED: Add 2 empty lines**
-        commands.push(0x0A, 0x0A); // \n \n (2 baris kosong)
-        
-        // Print the number with normal font size
+        // **MODIFIED: NO empty lines at the beginning**
+        // Print the number with normal font size immediately
         const textBytes = encoder.encode(currentValue);
         commands = commands.concat(Array.from(textBytes));
         
@@ -379,10 +377,8 @@
         commands.push(0x1B, 0x40); // Initialize printer
         commands.push(0x1B, 0x61, 0x01); // Center align
         
-        // **MODIFIED: Add 2 empty lines**
-        commands.push(0x0A, 0x0A);
-        
-        // Print the number
+        // **MODIFIED: NO empty lines at the beginning**
+        // Print the number immediately
         const textBytes = encoder.encode(currentValue);
         commands = commands.concat(Array.from(textBytes));
         
