@@ -62,8 +62,9 @@
       <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-lg transition duration-150" id="print">Print</button>
       
       <!-- Row 4 -->
-      <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150 col-span-2" data-value="0">0</button>
+      <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="0">0</button>
       <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" data-value="00">00</button>
+      <button class="number-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-lg transition duration-150" id="decimal-btn" data-value=".">.</button>
       <button class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-lg transition duration-150" id="connect">Connect</button>
     </div>
     
@@ -81,6 +82,7 @@
     const statusText = document.querySelector('.status-text');
     const notification = document.getElementById('notification');
     const notificationText = document.getElementById('notification-text');
+    const decimalBtn = document.getElementById('decimal-btn');
     
     // State
     let currentValue = '0';
@@ -88,32 +90,34 @@
     let writer = null;
     
     // Initialize barcode with default value
-    JsBarcode(barcodeSvg, currentValue, {
-      format: "CODE128",
-      width: 2,
-      height: 80,
-      displayValue: true,
-      fontSize: 16,
-      margin: 10
-    });
+    updateBarcode();
     
-    // Update display and barcode
-    function updateDisplay() {
-      display.textContent = currentValue;
-      
-      // Update barcode
+    // Update barcode
+    function updateBarcode() {
       if (currentValue === '0') {
         barcodeSvg.innerHTML = '';
       } else {
+        // CODE128 mendukung karakter titik, kita gunakan format yang benar
         JsBarcode(barcodeSvg, currentValue, {
           format: "CODE128",
           width: 2,
           height: 80,
           displayValue: true,
           fontSize: 16,
-          margin: 10
+          margin: 10,
+          // Pastikan titik dianggap sebagai karakter yang valid
+          valid: function(data) {
+            // Validasi khusus untuk memastikan titik diterima
+            return /^[\x00-\x7F]+$/.test(data); // Karakter ASCII printable
+          }
         });
       }
+    }
+    
+    // Update display and barcode
+    function updateDisplay() {
+      display.textContent = currentValue;
+      updateBarcode();
     }
     
     // Show notification
@@ -142,6 +146,33 @@
       }
     }
     
+    // Check if value can accept decimal point
+    function canAddDecimal(value) {
+      // Jika sudah ada titik, tidak bisa tambah lagi
+      if (value.includes('.')) return false;
+      
+      // Jika value kosong atau '0', bisa tambah titik
+      if (value === '0' || value === '') return true;
+      
+      // Jika value sudah panjang, mungkin batasi (opsional)
+      if (value.length >= 20) return false;
+      
+      return true;
+    }
+    
+    // Fungsi untuk validasi barcode dengan titik
+    function validateBarcodeValue(value) {
+      // Pastikan tidak ada titik di awal atau akhir
+      if (value.startsWith('.') || value.endsWith('.')) return false;
+      
+      // Pastikan hanya satu titik
+      const dotCount = (value.match(/\./g) || []).length;
+      if (dotCount > 1) return false;
+      
+      // Format: angka, bisa dengan satu titik di tengah
+      return /^\d+(\.\d+)?$/.test(value);
+    }
+    
     // Number button click handler
     document.querySelectorAll('.number-btn').forEach(button => {
       button.addEventListener('click', function() {
@@ -153,10 +184,56 @@
         
         const value = this.getAttribute('data-value');
         
+        // Handle decimal point separately
+        if (value === '.') {
+          if (canAddDecimal(currentValue)) {
+            // Jika currentValue adalah '0', ubah menjadi '0.'
+            if (currentValue === '0') {
+              currentValue = '0.';
+            } else {
+              currentValue += '.';
+            }
+            updateDisplay();
+          } else {
+            showNotification('Titik desimal sudah ada', 1000);
+          }
+          return;
+        }
+        
+        // Handle regular numbers
         if (currentValue === '0') {
-          currentValue = value;
+          // Jika currentValue adalah '0', ganti dengan angka baru
+          // Kecuali jika itu adalah '0.', maka tambahkan angka
+          if (currentValue === '0' && !currentValue.includes('.')) {
+            currentValue = value;
+          } else {
+            currentValue += value;
+          }
         } else {
-          currentValue += value;
+          // Jika sudah ada desimal, pastikan tidak melebihi panjang tertentu
+          if (currentValue.includes('.')) {
+            const decimalPart = currentValue.split('.')[1];
+            if (decimalPart.length < 3) { // Maksimal 3 digit desimal
+              currentValue += value;
+            } else {
+              showNotification('Maksimal 3 digit desimal', 1000);
+            }
+          } else {
+            // Untuk angka bulat, batasi panjang
+            if (currentValue.length < 20) {
+              currentValue += value;
+            } else {
+              showNotification('Maksimal 20 digit', 1000);
+            }
+          }
+        }
+        
+        // Validasi barcode
+        if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
+          showNotification('Format barcode tidak valid', 1000);
+          // Batalkan input terakhir
+          currentValue = currentValue.slice(0, -1);
+          if (currentValue === '') currentValue = '0';
         }
         
         updateDisplay();
@@ -233,6 +310,27 @@
       }
     });
     
+    // Fungsi untuk membuat perintah barcode ESC/POS dengan titik desimal
+    function generateBarcodeCommand(value) {
+      // ESC/POS commands untuk barcode
+      const esc = '\x1B';
+      const gs = '\x1D';
+      
+      let cmd = esc + '@'; // Initialize printer
+      
+      // Set barcode height
+      cmd += gs + 'h' + '\x50'; // height = 80 dots
+      
+      // Set barcode width
+      cmd += gs + 'w' + '\x02'; // width = 2
+      
+      // CODE128 barcode - dengan nilai yang mengandung titik
+      cmd += gs + 'k' + '\x49'; // CODE128
+      cmd += String.fromCharCode(value.length) + value;
+      
+      return cmd;
+    }
+    
     // Print button
     document.getElementById('print').addEventListener('click', async function() {
       // Add button press animation
@@ -248,6 +346,12 @@
 
       if (!writer) {
         showNotification('Printer belum terhubung. Klik tombol Connect dulu.');
+        return;
+      }
+
+      // Validasi barcode sebelum cetak
+      if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
+        showNotification('Format barcode tidak valid untuk dicetak');
         return;
       }
 
@@ -272,11 +376,8 @@
         data += currentValue + '\n\n';
         data += esc + '!' + '\x00'; // Reset text size
         
-        // Print barcode using ESC/POS native barcode commands
-        // CODE128 barcode
-        data += gs + 'h' + '\x50'; // Barcode height
-        data += gs + 'w' + '\x02'; // Barcode width
-        data += gs + 'k' + '\x49' + String.fromCharCode(currentValue.length) + currentValue;
+        // Generate barcode command dengan titik desimal
+        data += generateBarcodeCommand(currentValue);
         
         data += '\n\n\n';
         
@@ -296,8 +397,75 @@
         console.error("Print error:", err);
         updateStatus("❌ Gagal mengirim ke printer: " + err.message, "error");
         showNotification("Gagal mencetak barcode");
+        
+        // Jika error karena titik, coba format alternatif
+        if (err.message.includes("invalid") || err.message.includes("character")) {
+          showNotification("Mencoba format alternatif...");
+          await tryAlternativePrint();
+        }
       }
     });
+    
+    // Alternatif print jika format dengan titik tidak didukung
+    async function tryAlternativePrint() {
+      try {
+        // ESC/POS commands
+        const esc = '\x1B';
+        const gs = '\x1D';
+        
+        // Initialize printer
+        let data = esc + '@';
+        
+        // Center align
+        data += esc + 'a' + '\x01';
+        
+        // Print title
+        data += 'BARCODE\n\n';
+        
+        // Print the barcode value as text (larger font)
+        data += esc + '!' + '\x30'; // Double height and width
+        data += currentValue + '\n\n';
+        data += esc + '!' + '\x00'; // Reset text size
+        
+        // Beberapa printer mungkin perlu format khusus untuk titik
+        // Coba dengan mengganti titik dengan karakter lain untuk barcode
+        let barcodeForPrint = currentValue;
+        
+        // Jika printer tidak mendukung titik, gunakan kode khusus
+        // Atau coba format CODE128C (angka saja)
+        if (currentValue.includes('.')) {
+          // Alternatif: Ganti titik dengan karakter khusus yang didukung
+          barcodeForPrint = currentValue.replace('.', '-');
+          showNotification('Mengganti titik dengan strip (-) untuk barcode');
+        }
+        
+        // Set barcode height dan width
+        data += gs + 'h' + '\x50'; // height
+        data += gs + 'w' + '\x02'; // width
+        
+        // CODE128 barcode
+        data += gs + 'k' + '\x49'; // CODE128
+        data += String.fromCharCode(barcodeForPrint.length) + barcodeForPrint;
+        
+        data += '\n\n\n';
+        
+        // Add cut command (partial cut)
+        data += gs + 'V' + '\x41' + '\x00';
+        
+        // Encode and send data
+        const encoder = new TextEncoder();
+        const encodedData = encoder.encode(data);
+        
+        await writer.write(encodedData);
+        
+        updateStatus("✅ Barcode berhasil dicetak dengan format alternatif!", "success");
+        showNotification("Barcode berhasil dicetak!");
+        
+      } catch (error2) {
+        console.error("Alternative print error:", error2);
+        showNotification("Gagal mencetak dengan format alternatif");
+      }
+    }
     
     // Keyboard support
     document.addEventListener('keydown', function(event) {
@@ -309,6 +477,12 @@
         if (button) {
           button.click();
         }
+      }
+      
+      // Decimal point
+      if (key === '.' || key === ',') {
+        decimalBtn.click();
+        event.preventDefault(); // Mencegah input koma default
       }
       
       // Special keys
