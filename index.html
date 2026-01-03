@@ -342,7 +342,7 @@
         commands = commands.concat(Array.from(barcodeBytes));
         
         // **MODIFIED: Add 5 empty lines after barcode**
-        commands.push(0x0A, 0x0A, 0x0A, 0x0A, 0x0A); // \n \n \n \n \n (5 baris kosong)
+        commands.push(0x0A, 0x0A, 0x0A); // \n \n \n (5 baris kosong)
         
         // Cut paper (full cut)
         commands.push(0x1D, 0x56, 0x41, 0x00); // GS V 41 0
