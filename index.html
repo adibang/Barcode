@@ -289,7 +289,7 @@
       return cmd;
     }
     
-    // Print button - MODIFIED spacing as requested
+    // Print button - MODIFIED spacing as requested (5 empty lines after barcode)
     document.getElementById('print').addEventListener('click', async function() {
       this.classList.add('button-press');
       setTimeout(() => {
@@ -326,12 +326,11 @@
         // Set alignment to center for text
         commands.push(0x1B, 0x61, 0x01); // ESC a 1 (center)
         
-        // **MODIFIED: NO empty lines at the beginning**
         // Print the number with normal font size immediately
         const textBytes = encoder.encode(currentValue);
         commands = commands.concat(Array.from(textBytes));
         
-        // **MODIFIED: Add 1 empty line after the number**
+        // Add 1 empty line after the number
         commands.push(0x0A); // \n (1 baris kosong)
         
         // Set alignment to center for barcode
@@ -342,8 +341,8 @@
         const barcodeBytes = encoder.encode(barcodeCmd);
         commands = commands.concat(Array.from(barcodeBytes));
         
-        // **MODIFIED: Add 2 empty lines after barcode**
-        commands.push(0x0A, 0x0A); // \n \n (2 baris kosong)
+        // **MODIFIED: Add 5 empty lines after barcode**
+        commands.push(0x0A, 0x0A, 0x0A, 0x0A, 0x0A); // \n \n \n \n \n (5 baris kosong)
         
         // Cut paper (full cut)
         commands.push(0x1D, 0x56, 0x41, 0x00); // GS V 41 0
@@ -377,12 +376,11 @@
         commands.push(0x1B, 0x40); // Initialize printer
         commands.push(0x1B, 0x61, 0x01); // Center align
         
-        // **MODIFIED: NO empty lines at the beginning**
         // Print the number immediately
         const textBytes = encoder.encode(currentValue);
         commands = commands.concat(Array.from(textBytes));
         
-        // **MODIFIED: Add 1 empty line after the number**
+        // Add 1 empty line after the number
         commands.push(0x0A);
         
         // If printer doesn't support dot, replace with dash
@@ -405,8 +403,8 @@
         const barcodeBytes = encoder.encode(barcodeForPrint);
         commands = commands.concat(Array.from(barcodeBytes));
         
-        // **MODIFIED: Add 2 empty lines after barcode**
-        commands.push(0x0A, 0x0A);
+        // **MODIFIED: Add 5 empty lines after barcode**
+        commands.push(0x0A, 0x0A, 0x0A, 0x0A, 0x0A); // 5 baris kosong
         
         // Cut command
         commands.push(0x1D, 0x56, 0x41, 0x00); // Full cut
