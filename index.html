@@ -280,7 +280,7 @@
       const esc = '\x1B';
       const gs = '\x1D';
       
-      let cmd = esc + '@';
+      let cmd = '';
       cmd += gs + 'h' + '\x50'; // height = 80 dots
       cmd += gs + 'w' + '\x02'; // width = 2
       cmd += gs + 'k' + '\x49'; // CODE128
@@ -289,7 +289,7 @@
       return cmd;
     }
     
-    // Print button - MODIFIED for new print format
+    // Print button - MODIFIED for proper center alignment
     document.getElementById('print').addEventListener('click', async function() {
       this.classList.add('button-press');
       setTimeout(() => {
@@ -317,30 +317,43 @@
         // ESC/POS commands
         const esc = '\x1B';
         const gs = '\x1D';
+        const encoder = new TextEncoder();
+        let commands = [];
         
         // Initialize printer
-        let data = esc + '@';
+        commands.push(0x1B, 0x40); // ESC @
         
-        // Center alignment for everything
-        data += esc + 'a' + '\x01'; // Center align
+        // Set alignment to center for text
+        commands.push(0x1B, 0x61, 0x01); // ESC a 1 (center)
         
-        // MODIFICATION 1: Remove "BARCODE" text
-        // MODIFICATION 2: Use normal font size (not double height/width)
-        // MODIFICATION 3: Add a small line feed before the number
-        data += '\n' + currentValue + '\n\n';
+        // Add some line feeds before the number
+        commands.push(0x0A, 0x0A); // \n \n
         
-        // Generate barcode command with decimal point
-        data += generateBarcodeCommand(currentValue);
+        // Print the number with normal font size
+        // Convert string to bytes
+        const textBytes = encoder.encode(currentValue);
+        commands = commands.concat(Array.from(textBytes));
         
-        // Add line feeds and cut command
-        data += '\n\n\n';
-        data += gs + 'V' + '\x41' + '\x00'; // Full cut
+        // Add line feeds after the number
+        commands.push(0x0A, 0x0A); // \n \n
         
-        // Encode and send data
-        const encoder = new TextEncoder();
-        const encodedData = encoder.encode(data);
+        // IMPORTANT: For barcode to be centered, we need to set alignment to center
+        // before printing the barcode
+        commands.push(0x1B, 0x61, 0x01); // ESC a 1 (center) again for barcode
         
-        await writer.write(encodedData);
+        // Generate barcode command
+        const barcodeCmd = generateBarcodeCommand(currentValue);
+        const barcodeBytes = encoder.encode(barcodeCmd);
+        commands = commands.concat(Array.from(barcodeBytes));
+        
+        // Add line feeds after barcode
+        commands.push(0x0A, 0x0A, 0x0A); // \n \n \n
+        
+        // Cut paper (full cut)
+        commands.push(0x1D, 0x56, 0x41, 0x00); // GS V 41 0
+        
+        // Send all commands to printer
+        await writer.write(new Uint8Array(commands));
         
         updateStatus("✅ Barcode berhasil dikirim ke printer!", "success");
         showNotification("Barcode berhasil dicetak!");
@@ -362,12 +375,20 @@
       try {
         const esc = '\x1B';
         const gs = '\x1D';
+        const encoder = new TextEncoder();
+        let commands = [];
         
-        let data = esc + '@';
-        data += esc + 'a' + '\x01'; // Center align
+        commands.push(0x1B, 0x40); // Initialize printer
+        commands.push(0x1B, 0x61, 0x01); // Center align
         
-        // Use normal font size, no "BARCODE" text
-        data += '\n' + currentValue + '\n\n';
+        // Add line feeds
+        commands.push(0x0A, 0x0A);
+        
+        // Print the number
+        const textBytes = encoder.encode(currentValue);
+        commands = commands.concat(Array.from(textBytes));
+        
+        commands.push(0x0A, 0x0A);
         
         // If printer doesn't support dot, replace with dash
         let barcodeForPrint = currentValue;
@@ -376,19 +397,24 @@
           showNotification('Mengganti titik dengan strip (-) untuk barcode');
         }
         
+        // Set alignment to center for barcode
+        commands.push(0x1B, 0x61, 0x01); // Center align
+        
         // Set barcode height and width
-        data += gs + 'h' + '\x50';
-        data += gs + 'w' + '\x02';
-        data += gs + 'k' + '\x49';
-        data += String.fromCharCode(barcodeForPrint.length) + barcodeForPrint;
+        commands.push(0x1D, 0x68, 0x50); // GS h 80 (height)
+        commands.push(0x1D, 0x77, 0x02); // GS w 2 (width)
         
-        data += '\n\n\n';
-        data += gs + 'V' + '\x41' + '\x00';
+        // CODE128 barcode
+        commands.push(0x1D, 0x6B, 0x49); // GS k 73 (CODE128)
+        commands.push(barcodeForPrint.length); // Length
+        const barcodeBytes = encoder.encode(barcodeForPrint);
+        commands = commands.concat(Array.from(barcodeBytes));
         
-        const encoder = new TextEncoder();
-        const encodedData = encoder.encode(data);
+        // Add line feeds and cut command
+        commands.push(0x0A, 0x0A, 0x0A);
+        commands.push(0x1D, 0x56, 0x41, 0x00); // Full cut
         
-        await writer.write(encodedData);
+        await writer.write(new Uint8Array(commands));
         
         updateStatus("✅ Barcode berhasil dicetak dengan format alternatif!", "success");
         showNotification("Barcode berhasil dicetak!");
