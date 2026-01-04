@@ -15,9 +15,29 @@
     .button-press {
       animation: buttonPress 0.1s ease-in-out;
     }
+    
+    /* Suara loading indicator */
+    .audio-loading {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: #4CAF50;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 15px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 1000;
+    }
+    .audio-loading.show {
+      opacity: 1;
+    }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+  <div class="audio-loading" id="audio-status">Audio: Memuat...</div>
+  
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
     <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Kalkulator Barcode</h1>
     
@@ -75,6 +95,137 @@
   </div>
 
   <script>
+    // Audio system
+    let audioContext = null;
+    let isAudioInitialized = false;
+    const audioStatus = document.getElementById('audio-status');
+    
+    // Initialize audio
+    function initAudio() {
+      try {
+        if (window.AudioContext || window.webkitAudioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          
+          // Create a simple test tone to verify audio works
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          gainNode.gain.value = 0.001; // Very quiet test
+          oscillator.frequency.value = 440;
+          oscillator.start();
+          oscillator.stop(audioContext.currentTime + 0.01);
+          
+          isAudioInitialized = true;
+          audioStatus.textContent = "Audio: Siap";
+          setTimeout(() => {
+            audioStatus.classList.remove('show');
+          }, 2000);
+          
+          console.log("Audio initialized successfully");
+        } else {
+          audioStatus.textContent = "Audio: Tidak didukung";
+          setTimeout(() => {
+            audioStatus.classList.remove('show');
+          }, 2000);
+        }
+      } catch (error) {
+        console.log("Audio initialization error:", error);
+        audioStatus.textContent = "Audio: Error";
+        setTimeout(() => {
+          audioStatus.classList.remove('show');
+        }, 2000);
+      }
+    }
+    
+    // Show audio status
+    audioStatus.classList.add('show');
+    
+    // Play sound function
+    function playSound(type = 'click', frequency = 800, duration = 0.1, volume = 0.2) {
+      if (!isAudioInitialized) {
+        initAudio();
+        if (!isAudioInitialized) return;
+      }
+      
+      try {
+        // Resume audio context if suspended (required by some browsers)
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Set parameters based on sound type
+        switch(type) {
+          case 'number':
+            frequency = 600 + Math.random() * 100;
+            volume = 0.15;
+            break;
+          case 'delete':
+            frequency = 400;
+            volume = 0.2;
+            duration = 0.08;
+            break;
+          case 'function':
+            frequency = 1000;
+            volume = 0.18;
+            break;
+          case 'print':
+            frequency = 1200;
+            duration = 0.15;
+            volume = 0.2;
+            break;
+          case 'success':
+            frequency = 800;
+            duration = 0.2;
+            volume = 0.25;
+            break;
+          case 'error':
+            frequency = 300;
+            duration = 0.15;
+            volume = 0.25;
+            break;
+          case 'connect':
+            frequency = 600;
+            duration = 0.2;
+            volume = 0.22;
+            break;
+        }
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.value = frequency;
+        
+        // Set envelope for smooth sound
+        const now = audioContext.currentTime;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        
+        oscillator.start(now);
+        oscillator.stop(now + duration);
+        
+        // Cleanup
+        oscillator.onended = () => {
+          oscillator.disconnect();
+          gainNode.disconnect();
+        };
+      } catch (error) {
+        console.log("Sound error:", error);
+      }
+    }
+    
+    // Play click sound (simplified version)
+    function playClickSound() {
+      playSound('number');
+    }
+    
     // Elements
     const display = document.getElementById('display');
     const barcodeSvg = document.getElementById('barcode');
@@ -91,6 +242,14 @@
     
     // Initialize barcode with default value
     updateBarcode();
+    
+    // Initialize audio on first user interaction
+    document.addEventListener('click', function initAudioOnInteraction() {
+      if (!isAudioInitialized) {
+        initAudio();
+      }
+      document.removeEventListener('click', initAudioOnInteraction);
+    }, { once: true });
     
     // Update barcode
     function updateBarcode() {
@@ -133,8 +292,10 @@
       
       if (type === 'error') {
         status.className = 'mb-4 p-3 rounded-lg bg-red-100 text-red-800 text-center text-sm';
+        playSound('error');
       } else if (type === 'success') {
         status.className = 'mb-4 p-3 rounded-lg bg-green-100 text-green-800 text-center text-sm';
+        playSound('success');
       } else if (type === 'warning') {
         status.className = 'mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-800 text-center text-sm';
       } else {
@@ -161,12 +322,19 @@
     // Number button click handler
     document.querySelectorAll('.number-btn').forEach(button => {
       button.addEventListener('click', function() {
+        // Animation
         this.classList.add('button-press');
         setTimeout(() => {
           this.classList.remove('button-press');
         }, 100);
         
+        // Sound effect
         const value = this.getAttribute('data-value');
+        if (value === '.') {
+          playSound('function');
+        } else {
+          playClickSound();
+        }
         
         if (value === '.') {
           if (canAddDecimal(currentValue)) {
@@ -177,6 +345,7 @@
             }
             updateDisplay();
           } else {
+            playSound('error');
             showNotification('Titik desimal sudah ada', 1000);
           }
           return;
@@ -194,18 +363,21 @@
             if (decimalPart.length < 3) {
               currentValue += value;
             } else {
+              playSound('error');
               showNotification('Maksimal 3 digit desimal', 1000);
             }
           } else {
             if (currentValue.length < 20) {
               currentValue += value;
             } else {
+              playSound('error');
               showNotification('Maksimal 20 digit', 1000);
             }
           }
         }
         
         if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
+          playSound('error');
           showNotification('Format barcode tidak valid', 1000);
           currentValue = currentValue.slice(0, -1);
           if (currentValue === '') currentValue = '0';
@@ -217,10 +389,14 @@
     
     // Backspace button
     document.getElementById('backspace').addEventListener('click', function() {
+      // Animation
       this.classList.add('button-press');
       setTimeout(() => {
         this.classList.remove('button-press');
       }, 100);
+      
+      // Sound
+      playSound('delete');
       
       if (currentValue.length > 1) {
         currentValue = currentValue.slice(0, -1);
@@ -233,10 +409,14 @@
     
     // Reset button
     document.getElementById('reset').addEventListener('click', function() {
+      // Animation
       this.classList.add('button-press');
       setTimeout(() => {
         this.classList.remove('button-press');
       }, 100);
+      
+      // Sound
+      playSound('delete');
       
       currentValue = '0';
       updateDisplay();
@@ -244,10 +424,14 @@
     
     // Connect button - Web Serial API
     document.getElementById('connect').addEventListener('click', async function() {
+      // Animation
       this.classList.add('button-press');
       setTimeout(() => {
         this.classList.remove('button-press');
       }, 100);
+      
+      // Sound
+      playSound('connect');
       
       if (!("serial" in navigator)) {
         updateStatus("Browser tidak mendukung Web Serial API. Gunakan Chrome/Edge versi terbaru.", "error");
@@ -291,22 +475,29 @@
     
     // Print button - MODIFIED spacing as requested (5 empty lines after barcode)
     document.getElementById('print').addEventListener('click', async function() {
+      // Animation
       this.classList.add('button-press');
       setTimeout(() => {
         this.classList.remove('button-press');
       }, 100);
       
+      // Sound
+      playSound('print');
+      
       if (currentValue === '0') {
+        playSound('error');
         showNotification('Tidak ada barcode untuk dicetak');
         return;
       }
 
       if (!writer) {
+        playSound('error');
         showNotification('Printer belum terhubung. Klik tombol Connect dulu.');
         return;
       }
 
       if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
+        playSound('error');
         showNotification('Format barcode tidak valid untuk dicetak');
         return;
       }
@@ -420,9 +611,24 @@
       }
     }
     
-    // Keyboard support
+    // Keyboard support with sound
     document.addEventListener('keydown', function(event) {
       const key = event.key;
+      
+      // Play sound for any key press
+      if (key >= '0' && key <= '9') {
+        playClickSound();
+      } else if (key === '.' || key === ',') {
+        playSound('function');
+      } else if (key === 'Backspace' || key === 'Delete' || key === 'Escape') {
+        playSound('delete');
+      } else if (key === 'Enter') {
+        playSound('print');
+      } else if (key === 'c' || key === 'C') {
+        if (!event.ctrlKey) {
+          playSound('connect');
+        }
+      }
       
       // Numbers
       if (key >= '0' && key <= '9') {
