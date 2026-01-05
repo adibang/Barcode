@@ -2,11 +2,19 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Kalkulator Barcode + Web Serial</title>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    
     @keyframes buttonPress {
       0% { transform: scale(1); }
       50% { transform: scale(0.95); }
@@ -33,9 +41,50 @@
     .audio-loading.show {
       opacity: 1;
     }
+    
+    /* Ripple effect */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.6);
+      transform: scale(0);
+      animation: ripple-animation 0.6s linear;
+      pointer-events: none;
+    }
+    
+    @keyframes ripple-animation {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+    
+    /* Active state for buttons */
+    .active-button {
+      transform: scale(0.95);
+      transition: transform 0.05s ease;
+    }
+    
+    /* Improved button styling for better touch */
+    button {
+      position: relative;
+      overflow: hidden;
+      transform: translateZ(0);
+      will-change: transform;
+      transition: all 0.15s ease;
+      outline: none;
+    }
+    
+    /* Prevent text selection */
+    .no-select {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4 no-select">
   <div class="audio-loading" id="audio-status">Audio: Memuat...</div>
   
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
@@ -95,7 +144,7 @@
   </div>
 
   <script>
-    // Audio system
+    // Audio system - TIDAK DIUBAH
     let audioContext = null;
     let isAudioInitialized = false;
     const audioStatus = document.getElementById('audio-status');
@@ -143,7 +192,7 @@
     // Show audio status
     audioStatus.classList.add('show');
     
-    // Play sound function
+    // Play sound function - TIDAK DIUBAH
     function playSound(type = 'click', frequency = 800, duration = 0.1, volume = 0.2) {
       if (!isAudioInitialized) {
         initAudio();
@@ -251,6 +300,27 @@
       document.removeEventListener('click', initAudioOnInteraction);
     }, { once: true });
     
+    // Ripple effect function
+    function createRipple(event) {
+      const button = event.currentTarget;
+      const circle = document.createElement("span");
+      const diameter = Math.max(button.clientWidth, button.clientHeight);
+      const radius = diameter / 2;
+      
+      circle.style.width = circle.style.height = `${diameter}px`;
+      circle.style.left = `${event.clientX - button.getBoundingClientRect().left - radius}px`;
+      circle.style.top = `${event.clientY - button.getBoundingClientRect().top - radius}px`;
+      circle.classList.add("ripple");
+      
+      const ripple = button.getElementsByClassName("ripple")[0];
+      
+      if (ripple) {
+        ripple.remove();
+      }
+      
+      button.appendChild(circle);
+    }
+    
     // Update barcode
     function updateBarcode() {
       if (currentValue === '0') {
@@ -319,85 +389,223 @@
       return /^\d+(\.\d+)?$/.test(value);
     }
     
-    // Number button click handler
-    document.querySelectorAll('.number-btn').forEach(button => {
-      button.addEventListener('click', function() {
-        // Animation
-        this.classList.add('button-press');
-        setTimeout(() => {
-          this.classList.remove('button-press');
-        }, 100);
-        
-        // Sound effect
-        const value = this.getAttribute('data-value');
-        if (value === '.') {
-          playSound('function');
-        } else {
-          playClickSound();
-        }
-        
-        if (value === '.') {
-          if (canAddDecimal(currentValue)) {
-            if (currentValue === '0') {
-              currentValue = '0.';
-            } else {
-              currentValue += '.';
-            }
-            updateDisplay();
-          } else {
-            playSound('error');
-            showNotification('Titik desimal sudah ada', 1000);
-          }
-          return;
-        }
-        
-        if (currentValue === '0') {
-          if (currentValue === '0' && !currentValue.includes('.')) {
-            currentValue = value;
-          } else {
-            currentValue += value;
-          }
-        } else {
-          if (currentValue.includes('.')) {
-            const decimalPart = currentValue.split('.')[1];
-            if (decimalPart.length < 3) {
-              currentValue += value;
-            } else {
-              playSound('error');
-              showNotification('Maksimal 3 digit desimal', 1000);
-            }
-          } else {
-            if (currentValue.length < 20) {
-              currentValue += value;
-            } else {
-              playSound('error');
-              showNotification('Maksimal 20 digit', 1000);
-            }
-          }
-        }
-        
-        if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
-          playSound('error');
-          showNotification('Format barcode tidak valid', 1000);
-          currentValue = currentValue.slice(0, -1);
-          if (currentValue === '') currentValue = '0';
-        }
-        
-        updateDisplay();
+    // Setup button event listeners for better responsiveness
+    function setupButtonListeners() {
+      // Number buttons
+      document.querySelectorAll('.number-btn').forEach(button => {
+        button.addEventListener('click', handleNumberButtonClick);
+        button.addEventListener('touchstart', handleNumberButtonTouch, { passive: false });
       });
-    });
+      
+      // Backspace button
+      document.getElementById('backspace').addEventListener('click', handleBackspaceClick);
+      document.getElementById('backspace').addEventListener('touchstart', handleBackspaceTouch, { passive: false });
+      
+      // Reset button
+      document.getElementById('reset').addEventListener('click', handleResetClick);
+      document.getElementById('reset').addEventListener('touchstart', handleResetTouch, { passive: false });
+      
+      // Connect button
+      document.getElementById('connect').addEventListener('click', handleConnectClick);
+      document.getElementById('connect').addEventListener('touchstart', handleConnectTouch, { passive: false });
+      
+      // Print button
+      document.getElementById('print').addEventListener('click', handlePrintClick);
+      document.getElementById('print').addEventListener('touchstart', handlePrintTouch, { passive: false });
+    }
     
-    // Backspace button
-    document.getElementById('backspace').addEventListener('click', function() {
-      // Animation
-      this.classList.add('button-press');
+    // Number button handlers
+    function handleNumberButtonClick(e) {
+      createRipple(e);
+      this.classList.add('button-press', 'active-button');
+      
+      const value = this.getAttribute('data-value');
+      if (value === '.') {
+        playSound('function');
+      } else {
+        playClickSound();
+      }
+      
       setTimeout(() => {
-        this.classList.remove('button-press');
+        this.classList.remove('button-press', 'active-button');
       }, 100);
       
-      // Sound
+      processNumberInput(value);
+    }
+    
+    function handleNumberButtonTouch(e) {
+      e.preventDefault();
+      createRipple(e);
+      this.classList.add('active-button');
+      
+      const value = this.getAttribute('data-value');
+      if (value === '.') {
+        playSound('function');
+      } else {
+        playClickSound();
+      }
+      
+      // Trigger click after touch
+      setTimeout(() => {
+        this.click();
+        this.classList.remove('active-button');
+      }, 50);
+    }
+    
+    // Backspace handlers
+    function handleBackspaceClick(e) {
+      createRipple(e);
+      this.classList.add('button-press', 'active-button');
       playSound('delete');
       
+      setTimeout(() => {
+        this.classList.remove('button-press', 'active-button');
+      }, 100);
+      
+      processBackspace();
+    }
+    
+    function handleBackspaceTouch(e) {
+      e.preventDefault();
+      createRipple(e);
+      this.classList.add('active-button');
+      playSound('delete');
+      
+      setTimeout(() => {
+        this.click();
+        this.classList.remove('active-button');
+      }, 50);
+    }
+    
+    // Reset handlers
+    function handleResetClick(e) {
+      createRipple(e);
+      this.classList.add('button-press', 'active-button');
+      playSound('delete');
+      
+      setTimeout(() => {
+        this.classList.remove('button-press', 'active-button');
+      }, 100);
+      
+      processReset();
+    }
+    
+    function handleResetTouch(e) {
+      e.preventDefault();
+      createRipple(e);
+      this.classList.add('active-button');
+      playSound('delete');
+      
+      setTimeout(() => {
+        this.click();
+        this.classList.remove('active-button');
+      }, 50);
+    }
+    
+    // Connect handlers
+    function handleConnectClick(e) {
+      createRipple(e);
+      this.classList.add('button-press', 'active-button');
+      playSound('connect');
+      
+      setTimeout(() => {
+        this.classList.remove('button-press', 'active-button');
+      }, 100);
+      
+      processConnect();
+    }
+    
+    function handleConnectTouch(e) {
+      e.preventDefault();
+      createRipple(e);
+      this.classList.add('active-button');
+      playSound('connect');
+      
+      setTimeout(() => {
+        this.click();
+        this.classList.remove('active-button');
+      }, 50);
+    }
+    
+    // Print handlers
+    function handlePrintClick(e) {
+      createRipple(e);
+      this.classList.add('button-press', 'active-button');
+      playSound('print');
+      
+      setTimeout(() => {
+        this.classList.remove('button-press', 'active-button');
+      }, 100);
+      
+      processPrint();
+    }
+    
+    function handlePrintTouch(e) {
+      e.preventDefault();
+      createRipple(e);
+      this.classList.add('active-button');
+      playSound('print');
+      
+      setTimeout(() => {
+        this.click();
+        this.classList.remove('active-button');
+      }, 50);
+    }
+    
+    // Process number input
+    function processNumberInput(value) {
+      if (value === '.') {
+        if (canAddDecimal(currentValue)) {
+          if (currentValue === '0') {
+            currentValue = '0.';
+          } else {
+            currentValue += '.';
+          }
+          updateDisplay();
+        } else {
+          playSound('error');
+          showNotification('Titik desimal sudah ada', 1000);
+        }
+        return;
+      }
+      
+      if (currentValue === '0') {
+        if (currentValue === '0' && !currentValue.includes('.')) {
+          currentValue = value;
+        } else {
+          currentValue += value;
+        }
+      } else {
+        if (currentValue.includes('.')) {
+          const decimalPart = currentValue.split('.')[1];
+          if (decimalPart.length < 3) {
+            currentValue += value;
+          } else {
+            playSound('error');
+            showNotification('Maksimal 3 digit desimal', 1000);
+          }
+        } else {
+          if (currentValue.length < 20) {
+            currentValue += value;
+          } else {
+            playSound('error');
+            showNotification('Maksimal 20 digit', 1000);
+          }
+        }
+      }
+      
+      if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
+        playSound('error');
+        showNotification('Format barcode tidak valid', 1000);
+        currentValue = currentValue.slice(0, -1);
+        if (currentValue === '') currentValue = '0';
+      }
+      
+      updateDisplay();
+    }
+    
+    // Process backspace
+    function processBackspace() {
       if (currentValue.length > 1) {
         currentValue = currentValue.slice(0, -1);
       } else {
@@ -405,34 +613,16 @@
       }
       
       updateDisplay();
-    });
+    }
     
-    // Reset button
-    document.getElementById('reset').addEventListener('click', function() {
-      // Animation
-      this.classList.add('button-press');
-      setTimeout(() => {
-        this.classList.remove('button-press');
-      }, 100);
-      
-      // Sound
-      playSound('delete');
-      
+    // Process reset
+    function processReset() {
       currentValue = '0';
       updateDisplay();
-    });
+    }
     
-    // Connect button - Web Serial API
-    document.getElementById('connect').addEventListener('click', async function() {
-      // Animation
-      this.classList.add('button-press');
-      setTimeout(() => {
-        this.classList.remove('button-press');
-      }, 100);
-      
-      // Sound
-      playSound('connect');
-      
+    // Process connect
+    async function processConnect() {
       if (!("serial" in navigator)) {
         updateStatus("Browser tidak mendukung Web Serial API. Gunakan Chrome/Edge versi terbaru.", "error");
         showNotification("Browser tidak mendukung Web Serial API");
@@ -457,33 +647,10 @@
         }
         showNotification("Gagal terhubung ke printer");
       }
-    });
-    
-    // Function to generate barcode command ESC/POS
-    function generateBarcodeCommand(value) {
-      const esc = '\x1B';
-      const gs = '\x1D';
-      
-      let cmd = '';
-      cmd += gs + 'h' + '\x50'; // height = 80 dots
-      cmd += gs + 'w' + '\x02'; // width = 2
-      cmd += gs + 'k' + '\x49'; // CODE128
-      cmd += String.fromCharCode(value.length) + value;
-      
-      return cmd;
     }
     
-    // Print button - MODIFIED spacing as requested (5 empty lines after barcode)
-    document.getElementById('print').addEventListener('click', async function() {
-      // Animation
-      this.classList.add('button-press');
-      setTimeout(() => {
-        this.classList.remove('button-press');
-      }, 100);
-      
-      // Sound
-      playSound('print');
-      
+    // Process print
+    async function processPrint() {
       if (currentValue === '0') {
         playSound('error');
         showNotification('Tidak ada barcode untuk dicetak');
@@ -554,7 +721,21 @@
           await tryAlternativePrint();
         }
       }
-    });
+    }
+    
+    // Function to generate barcode command ESC/POS
+    function generateBarcodeCommand(value) {
+      const esc = '\x1B';
+      const gs = '\x1D';
+      
+      let cmd = '';
+      cmd += gs + 'h' + '\x50'; // height = 80 dots
+      cmd += gs + 'w' + '\x02'; // width = 2
+      cmd += gs + 'k' + '\x49'; // CODE128
+      cmd += String.fromCharCode(value.length) + value;
+      
+      return cmd;
+    }
     
     // Alternative print if format with dot is not supported
     async function tryAlternativePrint() {
@@ -668,6 +849,12 @@
     if (!("serial" in navigator)) {
       updateStatus("Browser tidak mendukung Web Serial API. Gunakan Chrome/Edge.", "warning");
     }
+    
+    // Setup button listeners on load
+    document.addEventListener('DOMContentLoaded', function() {
+      updateDisplay();
+      setupButtonListeners();
+    });
   </script>
 </body>
 </html>
