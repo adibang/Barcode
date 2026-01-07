@@ -42,23 +42,6 @@
       opacity: 1;
     }
     
-    /* Ripple effect */
-    .ripple {
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.6);
-      transform: scale(0);
-      animation: ripple-animation 0.6s linear;
-      pointer-events: none;
-    }
-    
-    @keyframes ripple-animation {
-      to {
-        transform: scale(4);
-        opacity: 0;
-      }
-    }
-    
     /* Active state for buttons */
     .active-button {
       transform: scale(0.95);
@@ -144,7 +127,7 @@
   </div>
 
   <script>
-    // Audio system - TIDAK DIUBAH
+    // Audio system - SEDERHANAKAN SEPERTI APLIKASI SEBELUMNYA
     let audioContext = null;
     let isAudioInitialized = false;
     const audioStatus = document.getElementById('audio-status');
@@ -154,25 +137,11 @@
       try {
         if (window.AudioContext || window.webkitAudioContext) {
           audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          
-          // Create a simple test tone to verify audio works
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-          
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-          
-          gainNode.gain.value = 0.001; // Very quiet test
-          oscillator.frequency.value = 440;
-          oscillator.start();
-          oscillator.stop(audioContext.currentTime + 0.01);
-          
           isAudioInitialized = true;
           audioStatus.textContent = "Audio: Siap";
           setTimeout(() => {
             audioStatus.classList.remove('show');
           }, 2000);
-          
           console.log("Audio initialized successfully");
         } else {
           audioStatus.textContent = "Audio: Tidak didukung";
@@ -192,15 +161,15 @@
     // Show audio status
     audioStatus.classList.add('show');
     
-    // Play sound function - TIDAK DIUBAH
-    function playSound(type = 'click', frequency = 800, duration = 0.1, volume = 0.2) {
+    // Play simple TIT sound seperti aplikasi sebelumnya
+    function playTitSound() {
       if (!isAudioInitialized) {
         initAudio();
         if (!isAudioInitialized) return;
       }
       
       try {
-        // Resume audio context if suspended (required by some browsers)
+        // Resume audio context if suspended
         if (audioContext.state === 'suspended') {
           audioContext.resume();
         }
@@ -211,48 +180,15 @@
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
         
-        // Set parameters based on sound type
-        switch(type) {
-          case 'number':
-            frequency = 600 + Math.random() * 100;
-            volume = 0.15;
-            break;
-          case 'delete':
-            frequency = 400;
-            volume = 0.2;
-            duration = 0.08;
-            break;
-          case 'function':
-            frequency = 1000;
-            volume = 0.18;
-            break;
-          case 'print':
-            frequency = 1200;
-            duration = 0.15;
-            volume = 0.2;
-            break;
-          case 'success':
-            frequency = 800;
-            duration = 0.2;
-            volume = 0.25;
-            break;
-          case 'error':
-            frequency = 300;
-            duration = 0.15;
-            volume = 0.25;
-            break;
-          case 'connect':
-            frequency = 600;
-            duration = 0.2;
-            volume = 0.22;
-            break;
-        }
-        
+        // Simple TIT sound - SAMA DENGAN APLIKASI SEBELUMNYA
         oscillator.type = 'sine';
-        oscillator.frequency.value = frequency;
+        oscillator.frequency.value = 800; // Fixed frequency for TIT sound
         
-        // Set envelope for smooth sound
+        // Set envelope for short TIT sound
         const now = audioContext.currentTime;
+        const duration = 0.08; // Very short duration for TIT
+        const volume = 0.45; // Good volume level (tidak dikurangi)
+        
         gainNode.gain.setValueAtTime(0, now);
         gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
         gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
@@ -269,12 +205,7 @@
         console.log("Sound error:", error);
       }
     }
-    
-    // Play click sound (simplified version)
-    function playClickSound() {
-      playSound('number');
-    }
-    
+
     // Elements
     const display = document.getElementById('display');
     const barcodeSvg = document.getElementById('barcode');
@@ -300,25 +231,12 @@
       document.removeEventListener('click', initAudioOnInteraction);
     }, { once: true });
     
-    // Ripple effect function
-    function createRipple(event) {
-      const button = event.currentTarget;
-      const circle = document.createElement("span");
-      const diameter = Math.max(button.clientWidth, button.clientHeight);
-      const radius = diameter / 2;
-      
-      circle.style.width = circle.style.height = `${diameter}px`;
-      circle.style.left = `${event.clientX - button.getBoundingClientRect().left - radius}px`;
-      circle.style.top = `${event.clientY - button.getBoundingClientRect().top - radius}px`;
-      circle.classList.add("ripple");
-      
-      const ripple = button.getElementsByClassName("ripple")[0];
-      
-      if (ripple) {
-        ripple.remove();
-      }
-      
-      button.appendChild(circle);
+    // Button press animation
+    function animateButtonPress(button) {
+      button.classList.add('button-press', 'active-button');
+      setTimeout(() => {
+        button.classList.remove('button-press', 'active-button');
+      }, 100);
     }
     
     // Update barcode
@@ -362,10 +280,8 @@
       
       if (type === 'error') {
         status.className = 'mb-4 p-3 rounded-lg bg-red-100 text-red-800 text-center text-sm';
-        playSound('error');
       } else if (type === 'success') {
         status.className = 'mb-4 p-3 rounded-lg bg-green-100 text-green-800 text-center text-sm';
-        playSound('success');
       } else if (type === 'warning') {
         status.className = 'mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-800 text-center text-sm';
       } else {
@@ -416,139 +332,95 @@
     
     // Number button handlers
     function handleNumberButtonClick(e) {
-      createRipple(e);
-      this.classList.add('button-press', 'active-button');
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       const value = this.getAttribute('data-value');
-      if (value === '.') {
-        playSound('function');
-      } else {
-        playClickSound();
-      }
-      
-      setTimeout(() => {
-        this.classList.remove('button-press', 'active-button');
-      }, 100);
-      
       processNumberInput(value);
     }
     
     function handleNumberButtonTouch(e) {
       e.preventDefault();
-      createRipple(e);
-      this.classList.add('active-button');
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       const value = this.getAttribute('data-value');
-      if (value === '.') {
-        playSound('function');
-      } else {
-        playClickSound();
-      }
       
       // Trigger click after touch
       setTimeout(() => {
         this.click();
-        this.classList.remove('active-button');
       }, 50);
     }
     
     // Backspace handlers
     function handleBackspaceClick(e) {
-      createRipple(e);
-      this.classList.add('button-press', 'active-button');
-      playSound('delete');
-      
-      setTimeout(() => {
-        this.classList.remove('button-press', 'active-button');
-      }, 100);
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       processBackspace();
     }
     
     function handleBackspaceTouch(e) {
       e.preventDefault();
-      createRipple(e);
-      this.classList.add('active-button');
-      playSound('delete');
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       setTimeout(() => {
         this.click();
-        this.classList.remove('active-button');
       }, 50);
     }
     
     // Reset handlers
     function handleResetClick(e) {
-      createRipple(e);
-      this.classList.add('button-press', 'active-button');
-      playSound('delete');
-      
-      setTimeout(() => {
-        this.classList.remove('button-press', 'active-button');
-      }, 100);
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       processReset();
     }
     
     function handleResetTouch(e) {
       e.preventDefault();
-      createRipple(e);
-      this.classList.add('active-button');
-      playSound('delete');
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       setTimeout(() => {
         this.click();
-        this.classList.remove('active-button');
       }, 50);
     }
     
     // Connect handlers
     function handleConnectClick(e) {
-      createRipple(e);
-      this.classList.add('button-press', 'active-button');
-      playSound('connect');
-      
-      setTimeout(() => {
-        this.classList.remove('button-press', 'active-button');
-      }, 100);
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       processConnect();
     }
     
     function handleConnectTouch(e) {
       e.preventDefault();
-      createRipple(e);
-      this.classList.add('active-button');
-      playSound('connect');
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       setTimeout(() => {
         this.click();
-        this.classList.remove('active-button');
       }, 50);
     }
     
     // Print handlers
     function handlePrintClick(e) {
-      createRipple(e);
-      this.classList.add('button-press', 'active-button');
-      playSound('print');
-      
-      setTimeout(() => {
-        this.classList.remove('button-press', 'active-button');
-      }, 100);
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       processPrint();
     }
     
     function handlePrintTouch(e) {
       e.preventDefault();
-      createRipple(e);
-      this.classList.add('active-button');
-      playSound('print');
+      animateButtonPress(this);
+      playTitSound(); // Gunakan playTitSound yang sama
       
       setTimeout(() => {
         this.click();
-        this.classList.remove('active-button');
       }, 50);
     }
     
@@ -563,7 +435,6 @@
           }
           updateDisplay();
         } else {
-          playSound('error');
           showNotification('Titik desimal sudah ada', 1000);
         }
         return;
@@ -581,21 +452,18 @@
           if (decimalPart.length < 3) {
             currentValue += value;
           } else {
-            playSound('error');
             showNotification('Maksimal 3 digit desimal', 1000);
           }
         } else {
           if (currentValue.length < 20) {
             currentValue += value;
           } else {
-            playSound('error');
             showNotification('Maksimal 20 digit', 1000);
           }
         }
       }
       
       if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
-        playSound('error');
         showNotification('Format barcode tidak valid', 1000);
         currentValue = currentValue.slice(0, -1);
         if (currentValue === '') currentValue = '0';
@@ -652,19 +520,16 @@
     // Process print
     async function processPrint() {
       if (currentValue === '0') {
-        playSound('error');
         showNotification('Tidak ada barcode untuk dicetak');
         return;
       }
 
       if (!writer) {
-        playSound('error');
         showNotification('Printer belum terhubung. Klik tombol Connect dulu.');
         return;
       }
 
       if (!validateBarcodeValue(currentValue) && currentValue !== '0') {
-        playSound('error');
         showNotification('Format barcode tidak valid untuk dicetak');
         return;
       }
@@ -699,7 +564,7 @@
         const barcodeBytes = encoder.encode(barcodeCmd);
         commands = commands.concat(Array.from(barcodeBytes));
         
-        // **MODIFIED: Add 5 empty lines after barcode**
+        // Add 5 empty lines after barcode
         commands.push(0x0A, 0x0A, 0x0A); // \n \n \n (5 baris kosong)
         
         // Cut paper (full cut)
@@ -775,7 +640,7 @@
         const barcodeBytes = encoder.encode(barcodeForPrint);
         commands = commands.concat(Array.from(barcodeBytes));
         
-        // **MODIFIED: Add 5 empty lines after barcode**
+        // Add 5 empty lines after barcode
         commands.push(0x0A, 0x0A, 0x0A, 0x0A, 0x0A); // 5 baris kosong
         
         // Cut command
@@ -797,19 +662,7 @@
       const key = event.key;
       
       // Play sound for any key press
-      if (key >= '0' && key <= '9') {
-        playClickSound();
-      } else if (key === '.' || key === ',') {
-        playSound('function');
-      } else if (key === 'Backspace' || key === 'Delete' || key === 'Escape') {
-        playSound('delete');
-      } else if (key === 'Enter') {
-        playSound('print');
-      } else if (key === 'c' || key === 'C') {
-        if (!event.ctrlKey) {
-          playSound('connect');
-        }
-      }
+      playTitSound();
       
       // Numbers
       if (key >= '0' && key <= '9') {
